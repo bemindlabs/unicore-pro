@@ -1,0 +1,39 @@
+{
+  "name": "@unicore/branding",
+  "version": "0.1.0",
+  "private": true,
+  "description": "White-label branding customization for UniCore Pro — config, CSS generator, Tailwind integration, React context",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-vm-modules --test src/__tests__/presets.test.ts src/__tests__/css-generator.test.ts src/__tests__/service.test.ts src/__tests__/tailwind.test.ts",
+    "lint": "echo 'no linter configured'"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/react": "^18.3.0",
+    "typescript": "^5.5.0"
+  }
+}
