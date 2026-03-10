@@ -1,0 +1,19 @@
+{
+  "name": "@unicore/license-client",
+  "version": "0.1.0",
+  "private": true,
+  "description": "License validation client for UniCore instances",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-vm-modules --test src/__tests__/*.test.ts",
+    "lint": "echo 'no linter configured'"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/node": "^20.14.0"
+  }
+}
