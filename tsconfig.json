@@ -26,6 +26,7 @@
       "@unicore/branding": ["packages/branding/src"],
       "@unicore/sso": ["packages/sso/src"],
       "@unicore/audit": ["packages/audit/src"],
+      "@unicore/domains": ["packages/domains/src"],
       "@unicore/license-client": ["packages/license-client/src"],
       "@unicore/shared-types": ["../unicore/packages/shared-types/src"],
       "@unicore/config": ["../unicore/packages/config/src"],
