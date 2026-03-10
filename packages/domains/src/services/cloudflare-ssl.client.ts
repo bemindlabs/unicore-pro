@@ -1,0 +1,160 @@
+/**
+ * CloudflareSslClient — thin wrapper around the Cloudflare SSL/TLS REST API.
+ */
+
+import { Injectable, Logger, Inject } from '@nestjs/common';
+import type { SslMode, CloudflareSslDetails } from '../types/ssl.types.js';
+import { CLOUDFLARE_API_BASE, SSL_MODULE_OPTIONS } from '../ssl.constants.js';
+import type { SslModuleOptions } from '../types/ssl.types.js';
+
+interface CfApiResponse<T> {
+  success: boolean;
+  errors: Array<{ code: number; message: string }>;
+  result: T;
+}
+
+interface CfSslSetting { id: string; value: string; modified_on: string; }
+
+export interface CfCertPackCertificate {
+  id: string; type: string; hosts: string[]; issuer: string; signature: string;
+  status: string; bundle_method: string; validity_days: number;
+  uploaded_on: string; modified_on: string; expires_on: string;
+}
+
+export interface CfCertPack {
+  id: string; type: string; hosts: string[]; status: string;
+  primary_certificate: string; certificates: CfCertPackCertificate[];
+}
+
+interface CfCustomHostname {
+  id: string; hostname: string;
+  ssl: { id: string; type: string; method: string; status: string; settings: Record<string, unknown>; };
+  status: string; created_at: string;
+}
+
+@Injectable()
+export class CloudflareSslClient {
+  private readonly logger = new Logger(CloudflareSslClient.name);
+  private readonly baseUrl = CLOUDFLARE_API_BASE;
+
+  constructor(@Inject(SSL_MODULE_OPTIONS) private readonly options: SslModuleOptions) {}
+
+  async setSslMode(zoneId: string, mode: SslMode): Promise<void> {
+    const url = `${this.baseUrl}/zones/${zoneId}/settings/ssl`;
+    this.logger.debug(`Setting SSL mode="${mode}" for zone=${zoneId}`);
+    const response = await this.patch<CfSslSetting>(url, JSON.stringify({ value: mode }));
+    if (!response.success) {
+      throw new Error(`Cloudflare setSslMode failed: ${response.errors.map(e => e.message).join('; ')}`);
+    }
+    this.logger.log(`SSL mode set to "${mode}" for zone ${zoneId}`);
+  }
+
+  async getSslMode(zoneId: string): Promise<SslMode> {
+    const url = `${this.baseUrl}/zones/${zoneId}/settings/ssl`;
+    const response = await this.get<CfSslSetting>(url);
+    if (!response.success) {
+      throw new Error(`Cloudflare getSslMode failed: ${response.errors.map(e => e.message).join('; ')}`);
+    }
+    return response.result.value as SslMode;
+  }
+
+  async listCertificatePacks(zoneId: string): Promise<CfCertPack[]> {
+    const url = `${this.baseUrl}/zones/${zoneId}/ssl/certificate_packs?status=all`;
+    const response = await this.get<CfCertPack[]>(url);
+    if (!response.success) {
+      throw new Error(`Cloudflare listCertificatePacks failed: ${response.errors.map(e => e.message).join('; ')}`);
+    }
+    return response.result ?? [];
+  }
+
+  async orderAdvancedCertPack(zoneId: string, hostname: string): Promise<{ id: string; status: string } | null> {
+    const url = `${this.baseUrl}/zones/${zoneId}/ssl/certificate_packs/order`;
+    const body = JSON.stringify({ type: 'advanced', hosts: [hostname, `*.${hostname}`], validation_method: 'txt', validity_days: 365, certificate_authority: 'lets_encrypt', cloudflareBranding: false });
+    try {
+      const response = await this.post<{ id: string; status: string }>(url, body);
+      if (!response.success) {
+        this.logger.warn(`ACM order failed for zone=${zoneId}: ${response.errors.map(e => e.message).join('; ')}`);
+        return null;
+      }
+      this.logger.log(`ACM cert pack ordered: id=${response.result.id}`);
+      return response.result;
+    } catch (err: unknown) {
+      this.logger.warn(`ACM unavailable for zone=${zoneId}: ${(err as Error).message}`);
+      return null;
+    }
+  }
+
+  async getCertificatePack(zoneId: string, certPackId: string): Promise<CfCertPack | null> {
+    const url = `${this.baseUrl}/zones/${zoneId}/ssl/certificate_packs/${certPackId}`;
+    const response = await this.get<CfCertPack>(url);
+    if (!response.success) return null;
+    return response.result;
+  }
+
+  async createCustomHostname(zoneId: string, hostname: string): Promise<{ id: string; status: string } | null> {
+    const url = `${this.baseUrl}/zones/${zoneId}/custom_hostnames`;
+    const body = JSON.stringify({ hostname, ssl: { method: 'txt', type: 'dv', settings: { http2: 'on', tls_1_3: 'on', min_tls_version: '1.2' } } });
+    try {
+      const response = await this.post<CfCustomHostname>(url, body);
+      if (!response.success) {
+        this.logger.warn(`Custom hostname creation failed for ${hostname}: ${response.errors.map(e => e.message).join('; ')}`);
+        return null;
+      }
+      return { id: response.result.id, status: response.result.status };
+    } catch (err: unknown) {
+      this.logger.warn(`Custom hostname creation error: ${(err as Error).message}`);
+      return null;
+    }
+  }
+
+  async getCustomHostname(zoneId: string, hostnameId: string): Promise<CfCustomHostname | null> {
+    const url = `${this.baseUrl}/zones/${zoneId}/custom_hostnames/${hostnameId}`;
+    const response = await this.get<CfCustomHostname>(url);
+    if (!response.success) return null;
+    return response.result;
+  }
+
+  async deleteCustomHostname(zoneId: string, hostnameId: string): Promise<void> {
+    const url = `${this.baseUrl}/zones/${zoneId}/custom_hostnames/${hostnameId}`;
+    await this.delete(url);
+    this.logger.log(`Custom hostname ${hostnameId} deleted from zone ${zoneId}`);
+  }
+
+  async getSslDetails(zoneId: string, certPackId?: string | null): Promise<CloudflareSslDetails> {
+    const packs = await this.listCertificatePacks(zoneId);
+    const pack = certPackId ? (packs.find(p => p.id === certPackId) ?? packs[0]) : packs[0];
+    if (!pack) return {};
+    const primary = pack.certificates.find(c => c.id === pack.primary_certificate);
+    return {
+      certPackId: pack.id, type: pack.type, hosts: pack.hosts,
+      ...(primary ? { primaryCertificate: {
+        id: primary.id, type: primary.type, hosts: primary.hosts, issuer: primary.issuer,
+        signature: primary.signature, status: primary.status, bundleMethod: primary.bundle_method,
+        validFrom: primary.uploaded_on, validTo: primary.expires_on,
+      } } : {}),
+    };
+  }
+
+  private authHeaders(): Record<string, string> {
+    return { Authorization: `Bearer ${this.options.cloudflareApiToken}`, 'Content-Type': 'application/json' };
+  }
+
+  private async get<T>(url: string): Promise<CfApiResponse<T>> {
+    const res = await fetch(url, { method: 'GET', headers: this.authHeaders() });
+    return res.json() as Promise<CfApiResponse<T>>;
+  }
+
+  private async post<T>(url: string, body: string): Promise<CfApiResponse<T>> {
+    const res = await fetch(url, { method: 'POST', headers: this.authHeaders(), body });
+    return res.json() as Promise<CfApiResponse<T>>;
+  }
+
+  private async patch<T>(url: string, body: string): Promise<CfApiResponse<T>> {
+    const res = await fetch(url, { method: 'PATCH', headers: this.authHeaders(), body });
+    return res.json() as Promise<CfApiResponse<T>>;
+  }
+
+  private async delete(url: string): Promise<void> {
+    await fetch(url, { method: 'DELETE', headers: this.authHeaders() });
+  }
+}
