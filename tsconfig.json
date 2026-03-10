@@ -1,0 +1,37 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "lib": ["ES2022"],
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "moduleResolution": "node",
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "baseUrl": ".",
+    "paths": {
+      "@unicore/agents-pro": ["packages/agents-pro/src"],
+      "@unicore/agent-builder": ["packages/agent-builder/src"],
+      "@unicore/rbac": ["packages/rbac/src"],
+      "@unicore/workflows-advanced": ["packages/workflows-advanced/src"],
+      "@unicore/channels": ["packages/channels/src"],
+      "@unicore/branding": ["packages/branding/src"],
+      "@unicore/sso": ["packages/sso/src"],
+      "@unicore/audit": ["packages/audit/src"],
+      "@unicore/license-client": ["packages/license-client/src"],
+      "@unicore/shared-types": ["../unicore/packages/shared-types/src"],
+      "@unicore/config": ["../unicore/packages/config/src"],
+      "@unicore/ui": ["../unicore/packages/ui/src"],
+      "@unicore/integrations": ["../unicore/packages/integrations/src"]
+    }
+  },
+  "exclude": ["node_modules", "dist"]
+}
