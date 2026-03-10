@@ -22,8 +22,13 @@
  */
 
 import { DynamicModule, Module, Provider, Type } from '@nestjs/common';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { DomainService } from './services/domain.service.js';
 import { CloudflareClient } from './services/cloudflare.client.js';
+import { DnsLookupService } from './services/dns-lookup.service.js';
+import { VerificationService } from './services/verification.service.js';
+import { VerificationPollerService } from './services/verification-poller.service.js';
+import { VerificationEventsService } from './services/verification-events.service.js';
 import { DOMAINS_MODULE_OPTIONS, DOMAINS_PRISMA_SERVICE } from './domains.constants.js';
 import type { DomainsModuleOptions } from './types/domains.types.js';
 
@@ -42,7 +47,14 @@ export interface DomainsModuleAsyncOptions {
 // Internal provider list
 // ---------------------------------------------------------------------------
 
-const DOMAINS_PROVIDERS: Provider[] = [CloudflareClient, DomainService];
+const DOMAINS_PROVIDERS: Provider[] = [
+  CloudflareClient,
+  DomainService,
+  DnsLookupService,
+  VerificationService,
+  VerificationPollerService,
+  VerificationEventsService,
+];
 
 // ---------------------------------------------------------------------------
 // Module
@@ -61,6 +73,7 @@ export class DomainsModule {
 
     return {
       module: DomainsModule,
+      imports: [EventEmitterModule.forRoot()],
       providers: [
         {
           provide: DOMAINS_MODULE_OPTIONS,
@@ -72,7 +85,7 @@ export class DomainsModule {
         },
         ...DOMAINS_PROVIDERS,
       ],
-      exports: [DomainService, CloudflareClient],
+      exports: [DomainService, CloudflareClient, DnsLookupService, VerificationService, VerificationPollerService, VerificationEventsService],
     };
   }
 
@@ -109,7 +122,7 @@ export class DomainsModule {
         ...(asyncOptions.extraProviders ?? []),
         ...DOMAINS_PROVIDERS,
       ],
-      exports: [DomainService, CloudflareClient],
+      exports: [DomainService, CloudflareClient, DnsLookupService, VerificationService, VerificationPollerService, VerificationEventsService],
     };
   }
 
@@ -119,12 +132,13 @@ export class DomainsModule {
   static forTest(mockPrisma: unknown, options: DomainsModuleOptions): DynamicModule {
     return {
       module: DomainsModule,
+      imports: [EventEmitterModule.forRoot()],
       providers: [
         { provide: DOMAINS_MODULE_OPTIONS, useValue: options },
         { provide: DOMAINS_PRISMA_SERVICE, useValue: mockPrisma },
         ...DOMAINS_PROVIDERS,
       ],
-      exports: [DomainService, CloudflareClient],
+      exports: [DomainService, CloudflareClient, DnsLookupService, VerificationService, VerificationPollerService, VerificationEventsService],
     };
   }
 }

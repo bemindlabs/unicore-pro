@@ -58,6 +58,7 @@ model Domain {
   updatedAt            DateTime     @updatedAt
 
   ssl SslCertificate?
+  verifications DomainVerification[]
 
   @@index([tenantId])
   @@index([status])
@@ -97,3 +98,65 @@ model SslCertificate {
 
 // Domain model must reference SslCertificate
 // Note: Domain.ssl is added via the relation above; Domain model stays as defined.
+
+// ─── Domain verification flow (UNC-53) ────────────────────────────────────────
+
+/// Status of a domain ownership verification attempt (separate from DomainStatus).
+enum VerificationStatus {
+  pending    // TXT record generated, waiting for user to add it to DNS
+  verifying  // DNS polling in progress
+  verified   // TXT record confirmed in DNS
+  active     // Domain fully operational after verification
+  failed     // Max polling attempts exceeded without finding the TXT record
+  cancelled  // Verification cancelled by user
+}
+
+/// Tracks a single domain ownership verification flow (UNC-53).
+/// One domain may accumulate multiple records over time; rate-limiting
+/// metadata is carried on the most-recent row per domainId.
+model DomainVerification {
+  id     String @id @default(cuid())
+
+  /// FK to the Domain record being verified.
+  domainId String
+  domain   Domain @relation(fields: [domainId], references: [id], onDelete: Cascade)
+
+  /// Domain name snapshot at verification start, e.g. "example.com".
+  domainName String @map("domain_name")
+
+  /// Full TXT value the user must publish, e.g. "unicore-verify=<uuid>".
+  txtRecord String @map("txt_record")
+
+  /// Current state in the verification state machine.
+  status VerificationStatus @default(pending)
+
+  /// Number of DNS polling attempts completed so far.
+  attempts Int @default(0)
+
+  /// Maximum attempts before transitioning to `failed`.
+  maxAttempts Int @default(60) @map("max_attempts")
+
+  /// Timestamp of the last DNS check.
+  lastCheckedAt DateTime? @map("last_checked_at")
+
+  /// When the TXT record was first confirmed in DNS.
+  verifiedAt DateTime? @map("verified_at")
+
+  /// When the domain became active (post-verification activation step).
+  activatedAt DateTime? @map("activated_at")
+
+  /// End of the current rate-limit window.
+  /// New starts are blocked while now < rateLimitResetAt AND startCount >= limit.
+  rateLimitResetAt DateTime? @map("rate_limit_reset_at")
+
+  /// Number of `startVerification()` calls in the current 1-hour window.
+  startCount Int @default(0) @map("start_count")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([domainId])
+  @@index([status])
+  @@index([domainId, status])
+  @@map("domain_verifications")
+}
