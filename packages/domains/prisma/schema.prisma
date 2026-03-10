@@ -1,0 +1,99 @@
+// Domain Mapping Prisma Schema Fragment
+// Merge into your root schema.prisma or use as a reference.
+// Models: Domain
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Status of a custom domain registration and verification lifecycle.
+enum DomainStatus {
+  pending    // domain added, awaiting DNS verification
+  verifying  // verification check in progress
+  verified   // TXT record confirmed, proceeding to DNS configuration
+  active     // CNAME configured, domain fully operational
+  error      // verification or DNS configuration failed
+}
+
+/// Status of the SSL certificate provisioned via Cloudflare or Let's Encrypt.
+enum SslStatus {
+  pending   // cert not yet provisioned
+  active    // cert provisioned and valid
+  expiring  // cert valid but expiring within 30 days
+  expired   // cert has expired
+  error     // cert provisioning or renewal failed
+}
+
+/// SSL provider used for the certificate.
+enum SslProvider {
+  cloudflare   // Cloudflare Universal SSL or Advanced Certificate Manager
+  letsencrypt  // Let's Encrypt via ACME protocol (fallback)
+}
+
+/// SSL mode configured on the Cloudflare zone.
+enum SslMode {
+  off      // No SSL — plaintext HTTP only
+  flexible // SSL between visitor and Cloudflare, HTTP to origin
+  full     // SSL end-to-end, any cert on origin
+  strict   // SSL end-to-end, valid cert required on origin
+}
+
+/// Represents a custom domain mapped to a tenant via Cloudflare DNS.
+model Domain {
+  id                   String       @id @default(cuid())
+  domain               String       @unique         // e.g. "app.acme.com" or "acme.com"
+  tenantId             String                       // the tenant/organization owning this domain
+  status               DomainStatus @default(pending)
+  verifiedAt           DateTime?                    // when the TXT record was confirmed
+  sslStatus            SslStatus    @default(pending)
+  txtVerificationRecord String                      // token placed in DNS TXT record for ownership proof
+  cloudflareZoneId     String?                      // Cloudflare zone ID (looked up on add / configure)
+  cloudflareDnsRecordId String?                     // Cloudflare DNS record ID for the CNAME we manage
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+
+  ssl SslCertificate?
+
+  @@index([tenantId])
+  @@index([status])
+  @@map("domains")
+}
+
+/// Represents an SSL certificate provisioned for a custom domain.
+model SslCertificate {
+  id              String      @id @default(cuid())
+  domainId        String      @unique               // FK → Domain.id (one cert per domain)
+  provider        SslProvider @default(cloudflare)  // cloudflare | letsencrypt
+  status          SslStatus   @default(pending)     // lifecycle state
+  sslMode         SslMode     @default(full)        // Cloudflare SSL mode
+  issuedAt        DateTime?                         // when cert was issued
+  expiresAt       DateTime?                         // cert expiry timestamp
+  lastCheckedAt   DateTime?                         // last health-check timestamp
+  renewalAttempts Int         @default(0)           // number of renewal attempts
+  errorMessage    String?                           // last error detail
+
+  // Cloudflare-specific identifiers
+  cloudflareCertPackId  String?   // certificate pack ID (Universal SSL / ACM)
+  cloudflareHostnameId  String?   // custom hostname ID for multi-tenant SSL
+
+  // ACME / Let's Encrypt metadata
+  acmeChallengeType  String?   // "http-01" | "dns-01"
+  acmeOrderUrl       String?   // ACME order URL for renewal tracking
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  domain Domain @relation(fields: [domainId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([expiresAt])
+  @@map("ssl_certificates")
+}
+
+// Domain model must reference SslCertificate
+// Note: Domain.ssl is added via the relation above; Domain model stays as defined.
