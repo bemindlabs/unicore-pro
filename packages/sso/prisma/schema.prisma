@@ -1,0 +1,103 @@
+// SSO Prisma Schema Fragment
+// Merge into your root schema.prisma or use as a reference.
+// Models: SsoConfiguration, SsoSession, ProvisionedUser
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Stores IdP configuration per tenant/organization.
+model SsoConfiguration {
+  id                      String    @id @default(cuid())
+  organizationId          String    @unique
+  isEnabled               Boolean   @default(false)
+  provider                String    // "azure_ad" | "okta" | "google_workspace" | "custom"
+
+  // SP settings
+  entityId                String
+  assertionConsumerServiceUrl String
+  singleLogoutUrl         String?
+  spCertificate           String?   // PEM — SP signing cert (public)
+  spPrivateKey            String?   // PEM — SP signing key (private, encrypted at rest)
+
+  // IdP settings
+  idpEntityId             String?
+  idpSsoUrl               String
+  idpSloUrl               String?
+  idpCertificate          String    // PEM — IdP signing cert for assertion verification
+  idpMetadataUrl          String?   // auto-refresh metadata from this URL
+
+  // Attribute mapping
+  emailAttribute          String    @default("email")
+  firstNameAttribute      String    @default("firstName")
+  lastNameAttribute       String    @default("lastName")
+  groupsAttribute         String?   @default("groups")
+  customAttributeMap      Json?     // { "saml_attr": "user_field" }
+
+  // JIT provisioning
+  jitEnabled              Boolean   @default(true)
+  jitDefaultRole          String?   // role to assign to JIT-provisioned users
+  jitGroupRoleMap         Json?     // { "saml_group": "role_name" }
+  jitAllowedDomains       String[]  // restrict JIT to these email domains
+
+  // Audit
+  lastMetadataRefresh     DateTime?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+  createdBy               String?
+
+  sessions SsoSession[]
+
+  @@index([organizationId])
+  @@map("sso_configurations")
+}
+
+/// Tracks active SSO sessions and in-flight login requests.
+model SsoSession {
+  id              String    @id @default(cuid())
+  ssoConfigId     String
+  userId          String?   // null until authenticated
+  relayState      String    @unique
+  requestId       String    @unique
+  nameId          String?
+  nameIdFormat    String?
+  sessionIndex    String?
+  status          String    @default("pending")  // "pending" | "authenticated" | "failed" | "logged_out"
+  errorMessage    String?
+  ipAddress       String?
+  userAgent       String?
+  redirectUrl     String?
+  createdAt       DateTime  @default(now())
+  authenticatedAt DateTime?
+  expiresAt       DateTime
+
+  ssoConfig SsoConfiguration @relation(fields: [ssoConfigId], references: [id], onDelete: Cascade)
+
+  @@index([ssoConfigId])
+  @@index([userId])
+  @@index([relayState])
+  @@map("sso_sessions")
+}
+
+/// Tracks users that were provisioned via JIT during SSO.
+model ProvisionedUser {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  organizationId String
+  provider       String
+  nameId         String
+  nameIdFormat   String?
+  samlAttributes Json     // raw SAML attributes at provisioning time
+  provisionedAt  DateTime @default(now())
+  lastLoginAt    DateTime?
+  loginCount     Int      @default(0)
+
+  @@index([organizationId])
+  @@index([nameId])
+  @@map("provisioned_users")
+}
