@@ -1,0 +1,19 @@
+{
+  "name": "@unicore/agents-pro",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pro specialist agent definitions, prompt templates, and lifecycle management for UniCore",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-vm-modules --test src/__tests__/*.test.ts",
+    "lint": "echo 'no linter configured'"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/node": "^20.14.0"
+  }
+}
