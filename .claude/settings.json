@@ -1,0 +1,39 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'cmd=$(jq -r .tool_input.command); if echo \"$cmd\" | grep -qE \"git\\s+(push\\s+--force|push\\s+-f|reset\\s+--hard|clean\\s+-f|checkout\\s+\\.\\s*$|branch\\s+-D)\"; then echo \"Blocked: destructive git command. Use safer alternatives or get explicit user approval.\" >&2; exit 2; fi'",
+            "statusMessage": "Checking for destructive commands..."
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'file=$(jq -r \".tool_input.file_path // empty\"); if [ -n \"$file\" ] && echo \"$file\" | grep -qE \"\\.(ts|tsx|js|jsx|json|css|md)$\"; then npx prettier --write \"$file\" 2>/dev/null || true; fi'",
+            "statusMessage": "Formatting with Prettier..."
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/var/platforms/unicores/.agents/scripts/auto-commit-on-done.sh",
+            "statusMessage": "Auto-committing agent work..."
+          }
+        ]
+      }
+    ]
+  }
+}
