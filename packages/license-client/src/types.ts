@@ -1,35 +1,27 @@
-// Duplicated from @unicore-license/license-types (not imported directly)
+// Types aligned with @unicore-license/license-types and openapi.yaml
+// Duplicated here to avoid cross-repo dependency
 
-export type LicenseTier = 'community' | 'professional' | 'enterprise';
-export type LicenseStatus = 'active' | 'expired' | 'suspended' | 'revoked';
+export type LicenseEdition = 'community' | 'pro';
 
 export interface FeatureFlags {
-  maxAgents: number;
-  maxWorkflows: number;
-  customBranding: boolean;
-  ssoEnabled: boolean;
-  auditLog: boolean;
+  allAgents: boolean;
+  customAgentBuilder: boolean;
+  fullRbac: boolean;
+  advancedWorkflows: boolean;
+  allChannels: boolean;
+  unlimitedRag: boolean;
+  whiteLabelBranding: boolean;
+  sso: boolean;
+  auditLogs: boolean;
   prioritySupport: boolean;
-  customIntegrations: boolean;
-  multiTenant: boolean;
-  advancedAnalytics: boolean;
-  whiteLabel: boolean;
 }
 
 export interface ValidationResult {
   valid: boolean;
-  licenseKey: string;
-  tier: LicenseTier;
-  status: LicenseStatus;
-  expiresAt: string;
+  edition: LicenseEdition;
   features: FeatureFlags;
-  limits: {
-    maxUsers: number;
-    maxAgents: number;
-    maxWorkflows: number;
-  };
-  cacheUntil?: string;
-  message?: string;
+  expiresAt: string;
+  cacheUntil: string;
 }
 
 export interface LicenseClientOptions {
@@ -60,10 +52,9 @@ export interface MachineFingerprint {
 
 export interface AnalyticsReport {
   licenseKey: string;
+  agentsActive: number;
+  rolesAssigned: number;
+  channelsActive: number;
+  workflowsCount: number;
   timestamp: string;
-  activeUsers: number;
-  activeAgents: number;
-  activeWorkflows: number;
-  apiCalls: number;
-  events?: Record<string, number>;
 }

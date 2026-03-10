@@ -105,7 +105,7 @@ export class LicenseClient {
   }
 
   private async serverValidate(): Promise<ValidationResult> {
-    const fingerprint = collectFingerprint();
+    const machineFingerprint = collectFingerprint();
 
     return this.fetchWithRetry<ValidationResult>(
       `${this.serverUrl}/api/v1/validate`,
@@ -113,8 +113,8 @@ export class LicenseClient {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          licenseKey: this.licenseKey,
-          fingerprint,
+          key: this.licenseKey,
+          machineFingerprint,
         }),
       },
     );
