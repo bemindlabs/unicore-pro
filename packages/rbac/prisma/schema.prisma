@@ -1,0 +1,79 @@
+// RBAC Prisma Schema Fragment
+// Merge into your root schema.prisma or use as a reference.
+// Models: Role, Permission, RolePermission, RoleAssignment
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// A role groups permissions together and can be assigned to users.
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  displayName String
+  description String?
+  isSystem    Boolean  @default(false)  // built-in roles cannot be deleted
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  permissions RolePermission[]
+  assignments RoleAssignment[]
+
+  @@map("roles")
+}
+
+/// A discrete permission for a resource + action pair.
+model Permission {
+  id          String   @id @default(cuid())
+  name        String   @unique  // e.g. "contacts:read", "agents:invoke"
+  resource    String            // e.g. "contacts", "agents"
+  action      String            // e.g. "read", "write", "delete", "invoke"
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  roles RolePermission[]
+
+  @@unique([resource, action])
+  @@map("permissions")
+}
+
+/// Join table linking roles to their permissions.
+model RolePermission {
+  roleId       String
+  permissionId String
+  grantedAt    DateTime @default(now())
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+/// Assigns a role to a user within an optional scope (e.g., workspace).
+model RoleAssignment {
+  id         String    @id @default(cuid())
+  userId     String
+  roleId     String
+  scopeType  String?   // e.g. "workspace", "organization" — null = global
+  scopeId    String?   // the ID of the scope entity
+  assignedBy String?   // userId of who made the assignment
+  assignedAt DateTime  @default(now())
+  expiresAt  DateTime?
+
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId, scopeType, scopeId])
+  @@index([userId])
+  @@index([roleId])
+  @@map("role_assignments")
+}
