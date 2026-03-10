@@ -1,0 +1,66 @@
+// Audit Prisma Schema Fragment
+// Merge into your root schema.prisma or use as a reference.
+// Model: AuditLog (immutable — no updatedAt, no soft-delete)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Immutable record of every significant action performed in the system.
+/// Rows are never updated or deleted — append-only.
+model AuditLog {
+  id         String   @id @default(cuid())
+  /// Wall-clock time when the action occurred (set server-side, never client-supplied).
+  timestamp  DateTime @default(now())
+
+  // ─── Actor ────────────────────────────────────────────────────────────────
+  /// ID of the authenticated user who triggered the action (null = system/job).
+  userId     String?
+  /// Human-readable display name captured at log time (denormalised for immutability).
+  userEmail  String?
+
+  // ─── Action ───────────────────────────────────────────────────────────────
+  /// Verb describing what happened, e.g. "create", "update", "delete", "login", "export".
+  action     String
+  /// Top-level resource category, e.g. "contacts", "orders", "users", "settings".
+  resource   String
+  /// Primary key of the affected record (null for collection-level actions).
+  resourceId String?
+
+  // ─── Diff payload ─────────────────────────────────────────────────────────
+  /// State of the record BEFORE the mutation (null for create / read actions).
+  before     Json?
+  /// State of the record AFTER the mutation (null for delete / read actions).
+  after      Json?
+
+  // ─── Request context ──────────────────────────────────────────────────────
+  /// Originating IP address (IPv4 or IPv6).
+  ip         String?
+  /// User-Agent header value.
+  userAgent  String?
+  /// HTTP method + path, e.g. "POST /api/contacts".
+  httpRoute  String?
+
+  // ─── Arbitrary extension ──────────────────────────────────────────────────
+  /// Freeform JSON bag for domain-specific extra context.
+  metadata   Json?
+
+  // ─── Status ───────────────────────────────────────────────────────────────
+  /// Whether the action succeeded or failed.
+  success    Boolean  @default(true)
+  /// Error message captured when success=false.
+  error      String?
+
+  @@index([userId])
+  @@index([resource])
+  @@index([resource, resourceId])
+  @@index([action])
+  @@index([timestamp])
+  @@index([userId, resource, timestamp])
+  @@map("audit_logs")
+}
